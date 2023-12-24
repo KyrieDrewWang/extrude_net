@@ -10,9 +10,9 @@ import tqdm
 from triangle_hash import TriangleHash as _TriangleHash
 import trimesh
 
-GEN_WATERTIGHT_MESH_AND_SDF_PATH = "./generate-watertight-meshes-and-sdf-grids/build"
-DATASET_PATH = "../data/ShapeNetCore.v1"
-CACHE_PATH = "../data/ShapeNetCore.v1"
+GEN_WATERTIGHT_MESH_AND_SDF_PATH = "/data/wc/generate-watertight-meshes-and-sdf-grids"
+DATASET_PATH = "/data/wc/extrude_net/data/ShapeNetCore.v1"
+CACHE_PATH = "/data/wc/extrude_net/data/airplane.txt"
 
 NUM_SAMPLE_POINTS = 16000
 
@@ -235,6 +235,8 @@ def parallel_run(f, args):
         pass
     pool.close()
     pool.join()
+    # for i in args:
+    #     f(i)
 
 def read_obj_as_o3d(file_path):
     with open(file_path, "r") as f:
@@ -358,7 +360,7 @@ def sample_surface_points(path):
 
 
 if __name__ == "__main__":
-    files = get_all_obj_path(use_cache=False)
+    files = get_all_obj_path(use_cache=False)[3:]
     parallel_run(transform_v1_to_BSP, files)
     parallel_run(generate_watertight_mesh_and_sdf, files)
     parallel_run(sample_surface_points, files)
