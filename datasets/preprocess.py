@@ -11,9 +11,9 @@ from triangle_hash import TriangleHash as _TriangleHash
 import trimesh
 from plyfile import PlyData, PlyElement
 GEN_WATERTIGHT_MESH_AND_SDF_PATH = "/data/wc/generate-watertight-meshes-and-sdf-grids"
-DATASET_PATH = "/data/wc/extrude_net/data/shapenet"
-CACHE_PATH = "/data/wc/extrude_net/data/airplane.txt"
-
+DATASET_PATH = "/data/wc/extrude_net/data/shapenet" 
+CACHE_PATH = "/data/wc/extrude_net/data/car.txt"
+# model_surface_point_cloud model_occupancy
 NUM_SAMPLE_POINTS = 16000
 
 # CATEGORIES_IDS = {
@@ -33,7 +33,7 @@ NUM_SAMPLE_POINTS = 16000
 #     }
 
 CATEGORIES_IDS = {
-    'airplane': '02691156'
+    'car': '02958343',
     }
 
 IDS_CATEGORIES = {index: category for category, index in CATEGORIES_IDS.items()}
@@ -230,13 +230,13 @@ def get_all_obj_path(use_cache=True):
         return files
 
 def parallel_run(f, args):
-    # pool = Pool(16)
-    # for _ in tqdm.tqdm(pool.imap_unordered(f, args), total=len(args)):
-    #     pass
+    pool = Pool(16)
+    for _ in tqdm.tqdm(pool.imap_unordered(f, args), total=len(args)):
+        pass
     # pool.close()
-    # pool.join()
-    for i in args:
-        f(i)
+    pool.join()
+    # for i in args:
+    #     f(i)
 
 def read_obj_as_o3d(file_path):
     with open(file_path, "r") as f:
@@ -376,7 +376,7 @@ def sample_surface_points(path):
 
 if __name__ == "__main__":
     files = get_all_obj_path(use_cache=False)
-    # parallel_run(transform_v1_to_BSP, files)
+    parallel_run(transform_v1_to_BSP, files)
     parallel_run(generate_watertight_mesh_and_sdf, files)
     parallel_run(sample_surface_points, files)
     parallel_run(generate_occupancy, files)

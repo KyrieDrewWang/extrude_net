@@ -33,8 +33,7 @@ def get_all_mesh_indices(mesh_dir):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='ExtrudeNet')
-    parser.add_argument('--config_path', type=str, default='./configs/plane.json', metavar='N',
-                        help='config_path')
+    parser.add_argument('--config_path', type=str, default='./configs/plane.json', metavar='N', help='config_path')
     args = parser.parse_args()
     config = Config((args.config_path))
     

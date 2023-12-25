@@ -10,33 +10,12 @@ import tqdm
 from triangle_hash import TriangleHash as _TriangleHash
 import trimesh
 from plyfile import PlyData, PlyElement
+from copy import deepcopy
 GEN_WATERTIGHT_MESH_AND_SDF_PATH = "/data/wc/generate-watertight-meshes-and-sdf-grids"
-DATASET_PATH = "/data/wc/extrude_net/data/shapenet"
-CACHE_PATH = "/data/wc/extrude_net/data/airplane.txt"
+DATASET_PATH = "/data/wc/Points2sketch/DATABASE/pc2skh_3d/mesh"
+CACHE_PATH = "/data/wc/Points2sketch/DATABASE/pc2skh_3d/data.txt"
 
 NUM_SAMPLE_POINTS = 16000
-
-# CATEGORIES_IDS = {
-#     'airplane': '02691156',
-#     'car': '02958343',
-#     'chair': '03001627',
-#     'lamp': '03636649',
-#     'table': '04379243',
-#     'sofa':'04256520',
-#     'telephone': '04401088',
-#     'vessel':'04530566',
-#     'loudspeaker':'03691459',
-#     'cabinet': '02933112',
-#     'display':'03211117',
-#     'bench':'02828884',
-#     'rifle':'04090263'
-#     }
-
-CATEGORIES_IDS = {
-    'airplane': '02691156'
-    }
-
-IDS_CATEGORIES = {index: category for category, index in CATEGORIES_IDS.items()}
 
 NUM_POINTS_UNIFORM = 100000
 
@@ -180,9 +159,9 @@ def check_mesh_contains(mesh, points, hash_resolution=512):
     return contains
 
 def generate_occupancy(path):
-    if os.path.exists(path.replace("model.obj", "model_occupancy.npy")):
+    if os.path.exists(pathrename(path, "_occupancy.npy")):
         return
-    mesh = trimesh.load(path.replace("model.obj", "model_watertight.ply"))
+    mesh = trimesh.load(pathrename(path, "_watertight.ply"))
     assert mesh.is_watertight, 'Warning: mesh %s is not watertight! Cannot sample points.' % path
 
     bbox = mesh.bounding_box.bounds
@@ -190,53 +169,38 @@ def generate_occupancy(path):
     scale = (bbox[1] - bbox[0])
     points_uniform = (np.random.rand(NUM_POINTS_UNIFORM, 3) - 0.5) * scale
     occupancies = check_mesh_contains(mesh, points_uniform).astype(np.uint8)
-    np.save(path.replace("model.obj", "model_occupancy.npy"), np.concatenate([points_uniform, np.expand_dims(occupancies, 1)], axis=1))
+    np.save(pathrename(path, "_occupancy.npy"), np.concatenate([points_uniform, np.expand_dims(occupancies, 1)], axis=1))
     return
 
 def get_all_obj_path(use_cache=True):
     # Using cached obj file paths
+    # Scan directory for all obj files
     if use_cache:
+        files = []
         assert os.path.exists(CACHE_PATH), "Please make sure the cache file %s is avaliable..." % CACHE_PATH
         print("Using cached paths to retrive all obj files...")
-        id_count = {}
         with open(CACHE_PATH, "r") as f:
             lines = f.readlines()
-        paths = [path.strip() for path in lines]
-        for path in paths:
-            file_cat = path.split("/")[-3]
-            if file_cat in id_count:
-                id_count[file_cat] += 1
-            else:
-                id_count[file_cat] = 1
-        
-        for key in id_count.keys():
-            print("CATEGORY: %s, NUMBER OF FILES: %d" % (IDS_CATEGORIES[key].upper(), id_count[key]))
-        return paths
-    # Scan directory for all obj files
+        for l in lines:
+            if l != '\n':
+                files.append(l.strip())
     else:
-        os.chdir(DATASET_PATH)
         files = []
         print("Gathering all obj files...")
-        for ID in tqdm.tqdm(IDS_CATEGORIES):
-            cat_files = glob.glob("%s/**/model.obj" % os.path.join(DATASET_PATH, ID), recursive=True)
-            files.append(cat_files)
-        for index, ID in enumerate(IDS_CATEGORIES):
-            print("CATEGORY: %s, NUMBER OF FILES: %d" % (IDS_CATEGORIES[ID].upper(), len(files[index])))
-        files = [item for sublist in files for item in sublist]
-        files = [os.path.join(DATASET_PATH, i) for i in files]
+        files = glob.glob("%s/**/*.obj" % "/data/wc/Points2sketch/DATABASE/deepcad/pc2skh_3d/mesh", recursive=True)
         with open(CACHE_PATH, "w") as f:
             for path in files:
                 f.write(path + "\n")
-        return files
+    return files
 
 def parallel_run(f, args):
-    # pool = Pool(16)
-    # for _ in tqdm.tqdm(pool.imap_unordered(f, args), total=len(args)):
-    #     pass
-    # pool.close()
-    # pool.join()
-    for i in args:
-        f(i)
+    pool = Pool(16, maxtasksperchild=4)
+    for _ in tqdm.tqdm(pool.imap_unordered(f, args), total=len(args)):
+        pass
+    pool.close()
+    pool.join()
+    # for i in tqdm.tqdm(args, total=len(args)):
+    #     f(i)
 
 def read_obj_as_o3d(file_path):
     with open(file_path, "r") as f:
@@ -289,7 +253,7 @@ def load_vox(filename):
     # <-
     return s
 
-def write_ply(save_path,points,face_data,text=True):
+def write_ply(save_path,points,normal_data,text=True):
     """
     save_path : path to save: '/yy/XX.ply'
     pt: point_cloud: size (N,3)
@@ -298,17 +262,38 @@ def write_ply(save_path,points,face_data,text=True):
     vertex = np.array(points, dtype=[('x', 'f4'), ('y', 'f4'),('z', 'f4')])
     el = PlyElement.describe(vertex, 'vertex', comments=['vertices'])
     
-    faces = [(face_data[i,0], face_data[i,1], face_data[i,2]) for i in range(face_data.shape[0])]
-    face_data = np.array(faces, dtype=[('x', 'i4'), ('y', 'i4'),('z', 'i4')])
-    face = PlyElement.describe(face_data, 'face')
+    normals = [(normal_data[i,0], normal_data[i,1], normal_data[i,2]) for i in range(normal_data.shape[0])]
+    normals = np.array(normals, dtype=[('x', 'f4'), ('y', 'f4'),('z', 'f4')])
+    normal = PlyElement.describe(normals, 'normals')
     with open(save_path, mode="wb") as f:
-        PlyData([el, face], text=text).write(f)
+        PlyData([el, normal], text=text).write(f)
+    return
+
+# def to_vox(in_file, out_file):
+#     if os.path.exists(out_file):
+#         return
+#     print("processing:", in_file)
+#     os.system("%s/build/watertight --in %s --out %s" % (GEN_WATERTIGHT_MESH_AND_SDF_PATH, in_file, out_file))
+#     return
+
+def vox(in_file, out_file):
+    os.system("%s/build/watertight --in %s --out %s" % (GEN_WATERTIGHT_MESH_AND_SDF_PATH, in_file, out_file))
+    return
+
+def to_vox(path):
+    in_file, out_file = pathrename(path, "_centered.obj"), pathrename(path, "_sdf.vox")
+    if os.path.exists(out_file):
+        return
+    print("processing:", in_file)
+    vox(in_file, out_file)
+    return
+
 
 def generate_watertight_mesh_and_sdf(path):
-    # if os.path.exists(path.replace("model.obj", "model_watertight.ply")):
-    #     return
-    os.system("%s/build/watertight --in %s --out %s" % (GEN_WATERTIGHT_MESH_AND_SDF_PATH, path.replace("model.obj", "model_centered.obj"), path.replace("model.obj", "model_sdf.vox")))
-    grid = load_vox(path.replace("model.obj", "model_sdf.vox"))
+    if os.path.exists(pathrename(deepcopy(path), "_surface_point_cloud.ply")):
+        return
+    vox_file = pathrename(deepcopy(path), "_sdf.vox")
+    grid = load_vox(vox_file)
     sdf = (grid.sdf<0).astype(np.float32)
     verts, faces = mcubes.marching_cubes(sdf, 0.5)
     verts = np.fliplr(verts) # <-- go from zyx to xyz
@@ -318,9 +303,39 @@ def generate_watertight_mesh_and_sdf(path):
     mesh = o3d.geometry.TriangleMesh()
     mesh.vertices = o3d.utility.Vector3dVector(verts)
     mesh.triangles = o3d.utility.Vector3iVector(faces)
-    o3d.io.write_triangle_mesh(path.replace("model.obj", "model_watertight.ply"), mesh)
+    water_tight_mesh = deepcopy(mesh)
+    # o3d.io.write_triangle_mesh(pathrename(path, "_watertight.ply"), mesh)
+    mesh = mesh.compute_triangle_normals()
+    mesh = mesh.compute_vertex_normals()
+    cloud = mesh.sample_points_uniformly(number_of_points=NUM_SAMPLE_POINTS)
+    points = np.asarray(cloud.points)
+    normals = np.asarray(cloud.normals)
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(points)
+    pcd.normals = o3d.utility.Vector3dVector(normals)
+    o3d.io.write_point_cloud(pathrename(path, "_surface_point_cloud.ply"), pcd)
+    # write_ply(pathrename(path, "_surface_point_cloud.ply"), points, normals)
+
+    water_tight_mesh = trimesh.Trimesh(np.asarray(water_tight_mesh.vertices), np.asarray(water_tight_mesh.triangles),vertex_normals=np.asarray(water_tight_mesh.vertex_normals))
+    
+    assert water_tight_mesh.is_watertight, 'Warning: mesh %s is not watertight! Cannot sample points.' % path
+    bbox = water_tight_mesh.bounding_box.bounds
+    loc = (bbox[0] + bbox[1])/2
+    scale = (bbox[1] - bbox[0])
+    points_uniform = (np.random.rand(NUM_POINTS_UNIFORM, 3) - 0.5) * scale
+    occupancies = check_mesh_contains(water_tight_mesh, points_uniform).astype(np.uint8)
+    np.save(pathrename(path, "_occupancy.npy"), np.concatenate([points_uniform, np.expand_dims(occupancies, 1)], axis=1))
     return
 
+def pathrename(obj_path, suffix):
+    '''
+    given the absolute path of the file, return the file name without suffix
+    '''
+    base_path, file_name = os.path.split(obj_path)
+    file_id = file_name.split('.')[0]
+    new_path = os.path.join(base_path, file_id + suffix)
+    return new_path
+    
 def transform_v1_to_BSP(obj_path):
     shapenet_v1 = read_obj_as_o3d(obj_path)
     shapenet_v1 = shapenet_v1.rotate(np.array([[0, 0, 1], [0, 1, 0], [-1, 0, 0]]))
@@ -330,10 +345,9 @@ def transform_v1_to_BSP(obj_path):
     loc = (min_bound + max_bound)/2
     scale = np.linalg.norm(max_bound - min_bound)
     shapenet_v1 = shapenet_v1.translate(-loc)
-    shapenet_v1 = shapenet_v1.scale(scale, np.zeros([3,1]))
-
+    shapenet_v1 = shapenet_v1.scale(scale, np.zeros([3,1]))    
     # write .mtl file
-    with open(obj_path.replace("model.obj", "model_centered.mtl"), "w") as f:
+    with open(pathrename(obj_path, "_centered.mtl"), "w") as f:
         f.write("# Created by Open3D\n")
         f.write("# object name: model_centered\n")
         f.write("newmtl model_centered\n")
@@ -341,12 +355,10 @@ def transform_v1_to_BSP(obj_path):
         f.write("Kd 1.000 1.000 1.000\n")
         f.write("Ks 0.000 0.000 0.000\n")
 
-
-
     vertices = np.asarray(shapenet_v1.vertices)
     faces = np.asarray(shapenet_v1.triangles)
 
-    with open(obj_path.replace("model.obj", "model_centered.obj"), "w") as f:
+    with open(pathrename(obj_path, "_centered.obj"), "w") as f:
         f.write("# Created by Open3D\n")
         f.write("# object name: model_centered\n")
         f.write("# number of vertices: %d\n" % vertices.shape[0])
@@ -358,25 +370,23 @@ def transform_v1_to_BSP(obj_path):
         for i in range(faces.shape[0]):
             # Note: obj file vertice index starts with 1
             f.write("f %d %d %d\n" % (faces[i][0]+1, faces[i][1]+1, faces[i][2]+1))
+    
 
-def sample_surface_points(path):
-    if os.path.exists(path.replace("model.obj", "model_surface_point_cloud.ply")):
-        return
-    mesh = o3d.io.read_triangle_mesh(path.replace("model.obj", "model_watertight.ply"))
-    mesh = mesh.compute_triangle_normals()
-    mesh = mesh.compute_vertex_normals()
-    cloud = mesh.sample_points_uniformly(number_of_points=NUM_SAMPLE_POINTS)
-    points = np.asarray(cloud.points)
-    normals = np.asarray(cloud.normals)
-    pcd = o3d.geometry.PointCloud()
-    pcd.points = o3d.utility.Vector3dVector(points)
-    pcd.normals = o3d.utility.Vector3dVector(normals)
-    o3d.io.write_point_cloud(path.replace("model.obj", "model_surface_point_cloud.ply"), pcd)
-
+def data_generator_to_vox(files):
+    for path in files:
+        base_path, file_name = os.path.split(path)
+        file_id = file_name.split('.')[0]
+        in_file = os.path.join(base_path, file_id + "_centered.obj")
+        out_file = os.path.join(base_path, file_id + "_sdf.vox") 
+        yield in_file, out_file
 
 if __name__ == "__main__":
-    files = get_all_obj_path(use_cache=False)
+    files = get_all_obj_path(use_cache=True)
     # parallel_run(transform_v1_to_BSP, files)
+    # pool = Pool(processes=32, maxtasksperchild=4)
+    # for in_file, out_file in data_generator_to_vox(files):
+    #     pool.apply_async(to_vox, args=(in_file, out_file,))
+    # pool.close()
+    # pool.join()
+    parallel_run(to_vox, files)
     parallel_run(generate_watertight_mesh_and_sdf, files)
-    parallel_run(sample_surface_points, files)
-    parallel_run(generate_occupancy, files)
