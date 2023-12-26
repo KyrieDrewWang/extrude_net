@@ -1,4 +1,5 @@
 import os
+os.environ['CUDA_VISIBLE_DEVICES']= "5" #6 7, 4, 5"
 import open3d as o3d
 import mcubes
 import struct
@@ -10,7 +11,8 @@ import tqdm
 from triangle_hash import TriangleHash as _TriangleHash
 import trimesh
 from plyfile import PlyData, PlyElement
-from copy import deepcopy
+import random
+
 GEN_WATERTIGHT_MESH_AND_SDF_PATH = "/data/wc/generate-watertight-meshes-and-sdf-grids"
 DATASET_PATH = "/data/wc/Points2sketch/DATABASE/pc2skh_3d/mesh"
 CACHE_PATH = "/data/wc/Points2sketch/DATABASE/pc2skh_3d/data.txt"
@@ -158,19 +160,6 @@ def check_mesh_contains(mesh, points, hash_resolution=512):
     contains = intersector.query(points)
     return contains
 
-def generate_occupancy(path):
-    if os.path.exists(pathrename(path, "_occupancy.npy")):
-        return
-    mesh = trimesh.load(pathrename(path, "_watertight.ply"))
-    assert mesh.is_watertight, 'Warning: mesh %s is not watertight! Cannot sample points.' % path
-
-    bbox = mesh.bounding_box.bounds
-    loc = (bbox[0] + bbox[1])/2
-    scale = (bbox[1] - bbox[0])
-    points_uniform = (np.random.rand(NUM_POINTS_UNIFORM, 3) - 0.5) * scale
-    occupancies = check_mesh_contains(mesh, points_uniform).astype(np.uint8)
-    np.save(pathrename(path, "_occupancy.npy"), np.concatenate([points_uniform, np.expand_dims(occupancies, 1)], axis=1))
-    return
 
 def get_all_obj_path(use_cache=True):
     # Using cached obj file paths
@@ -187,14 +176,14 @@ def get_all_obj_path(use_cache=True):
     else:
         files = []
         print("Gathering all obj files...")
-        files = glob.glob("%s/**/*.obj" % "/data/wc/Points2sketch/DATABASE/deepcad/pc2skh_3d/mesh", recursive=True)
+        files = glob.glob("%s/**/*.obj" % DATASET_PATH, recursive=True)
         with open(CACHE_PATH, "w") as f:
             for path in files:
                 f.write(path + "\n")
     return files
 
 def parallel_run(f, args):
-    pool = Pool(16, maxtasksperchild=4)
+    pool = Pool(128, maxtasksperchild=4)
     for _ in tqdm.tqdm(pool.imap_unordered(f, args), total=len(args)):
         pass
     pool.close()
@@ -269,30 +258,21 @@ def write_ply(save_path,points,normal_data,text=True):
         PlyData([el, normal], text=text).write(f)
     return
 
-# def to_vox(in_file, out_file):
-#     if os.path.exists(out_file):
-#         return
-#     print("processing:", in_file)
-#     os.system("%s/build/watertight --in %s --out %s" % (GEN_WATERTIGHT_MESH_AND_SDF_PATH, in_file, out_file))
-#     return
-
-def vox(in_file, out_file):
-    os.system("%s/build/watertight --in %s --out %s" % (GEN_WATERTIGHT_MESH_AND_SDF_PATH, in_file, out_file))
-    return
 
 def to_vox(path):
     in_file, out_file = pathrename(path, "_centered.obj"), pathrename(path, "_sdf.vox")
     if os.path.exists(out_file):
         return
-    print("processing:", in_file)
-    vox(in_file, out_file)
+    os.system("%s/build/watertight --in %s --out %s" % (GEN_WATERTIGHT_MESH_AND_SDF_PATH, in_file, out_file))
+    print("processed:", in_file)
     return
 
 
 def generate_watertight_mesh_and_sdf(path):
-    if os.path.exists(pathrename(deepcopy(path), "_surface_point_cloud.ply")):
+    out_file = pathrename(path, "_sdf.vox")
+    if os.path.exists(pathrename(path, "_watertight.ply")):
         return
-    vox_file = pathrename(deepcopy(path), "_sdf.vox")
+    vox_file = out_file
     grid = load_vox(vox_file)
     sdf = (grid.sdf<0).astype(np.float32)
     verts, faces = mcubes.marching_cubes(sdf, 0.5)
@@ -303,8 +283,15 @@ def generate_watertight_mesh_and_sdf(path):
     mesh = o3d.geometry.TriangleMesh()
     mesh.vertices = o3d.utility.Vector3dVector(verts)
     mesh.triangles = o3d.utility.Vector3iVector(faces)
-    water_tight_mesh = deepcopy(mesh)
-    # o3d.io.write_triangle_mesh(pathrename(path, "_watertight.ply"), mesh)
+    o3d.io.write_triangle_mesh(pathrename(path, "_watertight.ply"), mesh)
+    return
+
+def sample_surface_points(path):
+    if os.path.exists(pathrename(path, "_surface_point_cloud.ply")):
+        return
+    if not os.path.exists(pathrename(path, "_watertight.ply")):
+        return
+    mesh = o3d.io.read_triangle_mesh(pathrename(path, "_watertight.ply"))
     mesh = mesh.compute_triangle_normals()
     mesh = mesh.compute_vertex_normals()
     cloud = mesh.sample_points_uniformly(number_of_points=NUM_SAMPLE_POINTS)
@@ -314,18 +301,24 @@ def generate_watertight_mesh_and_sdf(path):
     pcd.points = o3d.utility.Vector3dVector(points)
     pcd.normals = o3d.utility.Vector3dVector(normals)
     o3d.io.write_point_cloud(pathrename(path, "_surface_point_cloud.ply"), pcd)
-    # write_ply(pathrename(path, "_surface_point_cloud.ply"), points, normals)
+    return
 
-    water_tight_mesh = trimesh.Trimesh(np.asarray(water_tight_mesh.vertices), np.asarray(water_tight_mesh.triangles),vertex_normals=np.asarray(water_tight_mesh.vertex_normals))
-    
-    assert water_tight_mesh.is_watertight, 'Warning: mesh %s is not watertight! Cannot sample points.' % path
-    bbox = water_tight_mesh.bounding_box.bounds
+
+def generate_occupancy(path):
+    if os.path.exists(pathrename(path, "_occupancy.npy")):
+        return
+    if not os.path.exists(pathrename(path, "_watertight.ply")):
+        return
+    mesh = trimesh.load(pathrename(path, "_watertight.ply"))
+    assert mesh.is_watertight, 'Warning: mesh %s is not watertight! Cannot sample points.' % path
+    bbox = mesh.bounding_box.bounds
     loc = (bbox[0] + bbox[1])/2
     scale = (bbox[1] - bbox[0])
     points_uniform = (np.random.rand(NUM_POINTS_UNIFORM, 3) - 0.5) * scale
-    occupancies = check_mesh_contains(water_tight_mesh, points_uniform).astype(np.uint8)
+    occupancies = check_mesh_contains(mesh, points_uniform).astype(np.uint8)
     np.save(pathrename(path, "_occupancy.npy"), np.concatenate([points_uniform, np.expand_dims(occupancies, 1)], axis=1))
     return
+
 
 def pathrename(obj_path, suffix):
     '''
@@ -338,14 +331,14 @@ def pathrename(obj_path, suffix):
     
 def transform_v1_to_BSP(obj_path):
     shapenet_v1 = read_obj_as_o3d(obj_path)
-    shapenet_v1 = shapenet_v1.rotate(np.array([[0, 0, 1], [0, 1, 0], [-1, 0, 0]]))
+    # shapenet_v1 = shapenet_v1.rotate(np.array([[0, 0, 1], [0, 1, 0], [-1, 0, 0]]))
 
     min_bound = shapenet_v1.get_min_bound()
     max_bound = shapenet_v1.get_max_bound()
     loc = (min_bound + max_bound)/2
-    scale = np.linalg.norm(max_bound - min_bound)
+    # scale = np.linalg.norm(max_bound - min_bound)
     shapenet_v1 = shapenet_v1.translate(-loc)
-    shapenet_v1 = shapenet_v1.scale(scale, np.zeros([3,1]))    
+    # shapenet_v1 = shapenet_v1.scale(scale, np.zeros([3,1]))    
     # write .mtl file
     with open(pathrename(obj_path, "_centered.mtl"), "w") as f:
         f.write("# Created by Open3D\n")
@@ -383,10 +376,7 @@ def data_generator_to_vox(files):
 if __name__ == "__main__":
     files = get_all_obj_path(use_cache=True)
     # parallel_run(transform_v1_to_BSP, files)
-    # pool = Pool(processes=32, maxtasksperchild=4)
-    # for in_file, out_file in data_generator_to_vox(files):
-    #     pool.apply_async(to_vox, args=(in_file, out_file,))
-    # pool.close()
-    # pool.join()
     parallel_run(to_vox, files)
-    parallel_run(generate_watertight_mesh_and_sdf, files)
+    # parallel_run(generate_watertight_mesh_and_sdf, files)
+    # parallel_run(sample_surface_points, files)
+    # parallel_run(generate_occupancy, files)
