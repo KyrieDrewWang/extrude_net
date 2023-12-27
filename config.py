@@ -57,11 +57,12 @@ class Config:
         self.sample_dir = config_dict["sample_dir"]
 
         # Dataset
-        self.dataset_root = config_dict["dataset_root"]
+        self.train_dataset_root = config_dict["train_dataset_root"]
+        self.val_dataset_root = config_dict["val_dataset_root"]
+        self.test_dataset_root = config_dict["test_dataset_root"]
 
         self.num_surface_points = config_dict["num_surface_points"]
         self.num_sample_points = config_dict["num_sample_points"]
-        self.category = config_dict["category"]
         self.balance = config_dict["balance"]
 
         # Loss

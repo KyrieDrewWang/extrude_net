@@ -25,8 +25,8 @@ def train(config):
 
     init(config)
 
-    train_loader= DataLoader(ShapeNet(shapenet_root=config.dataset_root, balance=True, categories=[config.category,], partition="train"), pin_memory=True, num_workers=40, batch_size=config.train_batch_size_per_gpu*config.num_gpu, shuffle=True, drop_last=True)
-    test_loader = DataLoader(ShapeNet(shapenet_root=config.dataset_root, balance=True, categories=[config.category,], partition="val"), pin_memory=True, num_workers=40, batch_size=config.test_batch_size_per_gpu*config.num_gpu, shuffle=True, drop_last=True)
+    train_loader= DataLoader(ShapeNet(data_path=config.train_dataset_root, balance=False, num_surface_points=config.num_surface_points, num_testing_points=config.num_sample_points), pin_memory=True, num_workers=0, batch_size=config.train_batch_size_per_gpu*config.num_gpu, shuffle=True, drop_last=True)
+    test_loader = DataLoader(ShapeNet(data_path=config.val_dataset_root, balance=False, num_surface_points=config.num_surface_points, num_testing_points=config.num_sample_points), pin_memory=True, num_workers=0, batch_size=config.test_batch_size_per_gpu*config.num_gpu, shuffle=True, drop_last=True)
 
     # clear pervious tensorboard entries
     if os.path.exists("./runs/%s" % config.experiment_name):

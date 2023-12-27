@@ -37,7 +37,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     config = Config((args.config_path))
     
-    dataset = ShapeNet(shapenet_root=config.dataset_root, num_surface_points=20000, num_testing_points=2048, balance=False, categories=[config.category,], partition="val")
+    dataset = ShapeNet(data_path=config.test_dataset_root, balance=False, num_surface_points=config.num_surface_points, num_testing_points=config.num_sample_points)
     samples_dir = os.path.join(config.sample_dir, config.experiment_name)
     dists = []
 

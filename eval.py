@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 import sys
-
+os.environ["CUDA_VISIBLE_DEVICES"]="8"
 from dataset import ShapeNet
 from loss import Loss
 from config import Config
@@ -15,7 +15,7 @@ import argparse
 
 def eval(config):
 
-    test_loader = DataLoader(ShapeNet(shapenet_root=config.dataset_root, num_testing_points=config.num_sample_points, balance=True, categories=[config.category,],partition="val"), pin_memory=True, num_workers=24, batch_size=config.test_batch_size_per_gpu*config.num_gpu, shuffle=False, drop_last=True)
+    test_loader = DataLoader(ShapeNet(data_path=config.test_dataset_root, balance=False, num_surface_points=config.num_surface_points, num_testing_points=config.num_sample_points), pin_memory=True, num_workers=4, batch_size=config.test_batch_size_per_gpu*config.num_gpu, shuffle=False, drop_last=True)
 
 
     device = torch.device("cuda")
@@ -71,8 +71,7 @@ def eval(config):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='ExtrudeNet')
-    parser.add_argument('--config_path', type=str, default='./configs/plane.json', metavar='N',
-                        help='config_path')
+    parser.add_argument('--config_path', type=str, default='./configs/plane.json', metavar='N', help='config_path')
     args = parser.parse_args()
     config = Config((args.config_path))
     eval(config)
