@@ -1,11 +1,7 @@
 import os
 import glob
-import shutil
 import json
-
-CACHE_PATH = "/data/wc/Points2sketch/DATABASE/pc2skh_3d/data.txt"
-DATASET_PATH = "/data/wc/Points2sketch/DATABASE/pc2skh_3d/mesh"
-
+from tqdm import tqdm
 def dict2json(the_dict, file_name):
     json_str = json.dumps(the_dict)
     with open(file_name, 'w') as json_file:
@@ -29,9 +25,7 @@ def get_all_obj_path(use_cache=True):
         print("Using cached paths to retrive all obj files...")
         with open(CACHE_PATH, "r") as f:
             lines = f.readlines()
-        for l in lines:
-            if l != '\n':
-                files.append(l.strip())
+        files = [path.strip() for path in lines]
     else:
         files = []
         print("Gathering all obj files...")
@@ -41,24 +35,58 @@ def get_all_obj_path(use_cache=True):
                 f.write(path + "\n")
     return files
 
+def cp_file(f, suf1, suf2):
+    file1_path = pathrename(f, suf1)
+    file2_path = pathrename(f, suf2)
+    if os.path.exists(file1_path) and os.path.exists(file2_path):
+        id = f.split('/')[-2:]
+        id = id[0] + '/' +id[1]
+        id = id.split('.')[0]
+        IDLST.append(id)
+        F_LST.append((file1_path ,file2_path))
+    return
+
 if __name__ == "__main__":
+    CACHE_PATH = "/data/wc/Points2sketch/DATABASE/pc2skh_3d/data_filter.txt"
+    DATASET_PATH = ""
+    data_base_dir = "/data/wc/extrude_net/data/pc2skh/extrudenet"
+    SUFF1 = "_surface_point_cloud.ply"
+    # SUFF1 = "_sdf.vox"
+    SUFF2 = "_occupancy.npy"
+
+    if not os.path.exists(data_base_dir):
+        os.makedirs(data_base_dir)
     files = get_all_obj_path(use_cache=True)
-    s_dir = "/data/wc/extrude_net/data/pc2skh/surface_pc"
-    o_dir = "/data/wc/extrude_net/data/pc2skh/occupancy"
-    id_lst = []
-    for f in files:
-        surface_point_cloud_path = pathrename(f, "_surface_point_cloud.ply")
-        occupancy_path = pathrename(f, "_occupancy.npy")
-        if os.path.exists(surface_point_cloud_path) and os.path.exists(occupancy_path):
-            shutil.copy(surface_point_cloud_path, s_dir)
-            shutil.copy(occupancy_path, o_dir)
-            id = f.split('/')[-2:]
-            id = id[0] + '/' +id[1]
-            id = id.split('.')[0]
-            id_lst.append(id)
-        else:
-            continue
+    F_LST = []
+    IDLST = []
+    pbar = tqdm(files)
+    for f in pbar:
+        cp_file(f,SUFF1,SUFF2,)
+
+
+    JSON_FILE = os.path.join(data_base_dir, "test.json") 
+    j = {"test":IDLST}
+    dict2json(j, JSON_FILE)
+    print(len(IDLST))
     
-    j = {"test":id_lst}
-    dict2json(j, "/data/wc/extrude_net/data/pc2skh/test.json")
-    print(len(id_lst))
+    num = len(F_LST)
+
+    text_file_path_train = os.path.join(data_base_dir, "train.txt")
+    text_file_path_val   = os.path.join(data_base_dir, "val.txt")
+    text_file_path_test  = os.path.join(data_base_dir, "test.txt")
+
+    train_lst = F_LST[:int(num*0.8)]
+    with open(text_file_path_train, 'w') as f:
+        for f1, f2 in train_lst:
+            f.write(f1 + ' ' + f2 + '\n')
+    
+    val_lst   = F_LST[int(num*0.8):int(num*0.9)]
+    with open(text_file_path_val, 'w') as f:
+        for f1, f2 in val_lst:
+            f.write(f1 + ' ' + f2 + '\n')
+            
+    test_lst  = F_LST[int(num*0.9):]
+    with open(text_file_path_test, 'w') as f:
+        for f1, f2 in test_lst:
+            f.write(f1 + ' ' + f2 + '\n')
+
