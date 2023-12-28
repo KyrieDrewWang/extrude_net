@@ -62,14 +62,14 @@ class MarchingCubes:
         mesh.triangles = o3d.utility.Vector3iVector(faces)
         o3d.io.write_triangle_mesh(file_name, mesh)
 
-    def batch_export_mesh(self, file_name_prefix, start_index, batch_size, occupancy_function, iso_value):
+    def batch_export_mesh(self, file_name_prefix, start_index, batch_size, occupancy_function, iso_value, ids):
         batch_verts, batch_faces = self.batch_generate_mesh(batch_size, occupancy_function, iso_value)
         Path(file_name_prefix).mkdir(parents=True, exist_ok=True)
         for i in range(len(batch_verts)):
             mesh = o3d.geometry.TriangleMesh()
             mesh.vertices = o3d.utility.Vector3dVector(batch_verts[i])
             mesh.triangles = o3d.utility.Vector3iVector(batch_faces[i])
-            o3d.io.write_triangle_mesh("%s/%d.ply" % (file_name_prefix, (start_index+i)), mesh)
+            o3d.io.write_triangle_mesh("%s/%s.ply" % (file_name_prefix, ids[i]), mesh)
 
     def batch_export_mesh_custom_postfix(self, file_name_prefix, custom_postfix, start_index, batch_size, occupancy_function, iso_value):
         batch_verts, batch_faces = self.batch_generate_mesh(batch_size, occupancy_function, iso_value)

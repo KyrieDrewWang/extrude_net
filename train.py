@@ -3,7 +3,7 @@ import sys
 sys.path.append('.')
 import time
 import shutil
-os.environ["CUDA_VISIBLE_DEVICES"]="8"
+os.environ["CUDA_VISIBLE_DEVICES"]="6"
 import numpy as np
 np.random.seed(0)
 import torch
@@ -60,7 +60,7 @@ def train(config):
         avg_loss = avg_loss_recon = avg_loss_primitive = avg_loss_weights = avg_loss_drift = avg_loss_support = avg_loss_control_polygon = iter_counter = avg_accuracy = avg_recall = avg_fscore = avg_fscore = 0
         print("Training: Epoch %d" % epoch)
         train_loader_t = tqdm(train_loader)
-        for surface_pointcloud, testing_points in train_loader_t:
+        for surface_pointcloud, testing_points, _ in train_loader_t:
             surface_pointcloud = surface_pointcloud.to(device)
             testing_points = testing_points.to(device)
             model.zero_grad()
@@ -136,7 +136,7 @@ def train(config):
             with torch.no_grad():
                 testloader_t = tqdm(test_loader)
                 avg_test_loss_recon = avg_test_loss_primitive = avg_test_loss_drift = avg_test_loss_support = avg_test_loss_control_polygon = avg_test_loss = test_iter_counter = avg_test_accuracy = avg_test_fscore= avg_test_recall = 0
-                for surface_pointcloud, testing_points  in testloader_t:
+                for surface_pointcloud, testing_points, _  in testloader_t:
 
                     surface_pointcloud = surface_pointcloud.to(device)
                     testing_points = testing_points.to(device)

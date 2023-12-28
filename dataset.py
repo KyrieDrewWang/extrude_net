@@ -44,9 +44,13 @@ class ShapeNet(Dataset):
 
         surface_point_path = data_url[0]
         gt_path = data_url[1]
+        _, data_id = os.path.split(data_url[0])  
+        data_id = data_id.replace("_surface_point_cloud.ply", "")
         # Loading Data file
         pointcloud = np.asarray(o3d.io.read_point_cloud(surface_point_path).points)
-
+        
+        pointcloud = pointcloud[[not np.all(pointcloud[i] == 0) for i in range(pointcloud.shape[0])], :]
+        
         # Load testing points
         if self.implicite_function == "Occupancy":
             testing_points = np.load(gt_path)
@@ -75,7 +79,7 @@ class ShapeNet(Dataset):
         # downsample surface point clouds
         surface_indices = np.random.randint(0, pointcloud.shape[0], self.num_surface_points)
         pointcloud = pointcloud[surface_indices]
-        return pointcloud.astype(np.float32), testing_points.astype(np.float32)
+        return pointcloud.astype(np.float32), testing_points.astype(np.float32), data_id
 
     def __len__(self):
         return len(self.data_urls)
@@ -83,7 +87,7 @@ class ShapeNet(Dataset):
     
 
 if __name__ == "__main__":
-    dataset = ShapeNet(data_path="/data/wc/extrude_net/data/pc2skh/extrudenet/data_train.txt", balance=False)
+    dataset = ShapeNet(data_path="/data/wc/extrude_net/data/pc2skh/extrudenet/train.txt", balance=False)
     print(dataset[0])
     for i in dataset:
         continue

@@ -32,7 +32,7 @@ def eval(config):
     with torch.no_grad():
         testloader_t = tqdm(test_loader)
         avg_test_loss_recon = avg_test_loss_primitive = avg_test_loss = avg_test_accuracy = avg_test_recall = 0
-        for surface_pointcloud, testing_points  in testloader_t:
+        for surface_pointcloud, testing_points, ids  in testloader_t:
 
             surface_pointcloud = surface_pointcloud.to(device)
             testing_points = testing_points.to(device)
@@ -52,7 +52,7 @@ def eval(config):
             avg_test_accuracy += accuracy.item()
             avg_test_recall += recall.item()
 
-            generate_mesh(model, surface_pointcloud.transpose(2,1), config, test_iter)
+            generate_mesh(model, surface_pointcloud.transpose(2,1), config, test_iter, ids = ids)
             test_iter += 1
             # exit()
 
