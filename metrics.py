@@ -9,6 +9,7 @@ from tqdm import tqdm
 from dataset import ShapeNet
 from chamfer_distance import ChamferDistance
 from torch.utils.data import DataLoader
+from multiprocessing import Pool
 
 def chamfer_distance(source_cloud, target_cloud):
     source_cloud = torch.tensor(source_cloud).unsqueeze(0).cuda()
@@ -28,9 +29,17 @@ def get_chamfer_distance(gt_pointcloud, output_mesh):
 
 def get_all_mesh_indices(mesh_dir):
     mesh_path = glob.glob(mesh_dir+"/*.ply")
-    return [int(path.split("/")[-1].split(".")[0]) for path in mesh_path]
+    return [path.split("/")[-1].split(".")[0] for path in mesh_path]
 
-
+def process(index, dataset, ):
+    try:
+        pointcloud, gt_occupancies = dataset.get_by_index(index)
+        pred_mesh = samples_dir+"/%s.ply" % index
+        dist = get_chamfer_distance(pointcloud, pred_mesh)
+        dists.append(dist) 
+        return 
+    except:
+        return
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='ExtrudeNet')
     parser.add_argument('--config_path', type=str, default='./configs/plane.json', metavar='N', help='config_path')
@@ -41,15 +50,14 @@ if __name__ == "__main__":
     samples_dir = os.path.join(config.sample_dir, config.experiment_name)
     dists = []
 
+    pool = Pool(64)
     for index in tqdm(get_all_mesh_indices(samples_dir)):
-        try:
-            pointcloud, gt_occupancies = dataset[index]
-            pred_mesh = samples_dir+"/%d.ply" % index
-            dist = get_chamfer_distance(pointcloud, pred_mesh)
-            dists.append(dist)
-        except:
-            continue
-
+        # process(index, dataset)
+        pool.apply(process, args=(index, dataset, ))
+        
+    pool.close()
+    pool.join()
+        
     print("")
     print("=======%s========" % config.experiment_name)
     print("Scaled by 1000:")

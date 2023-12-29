@@ -26,7 +26,7 @@ def vis(pc):
 
 def plot(data, inx):
     
-    ax = plt.subplot(1, 4, inx, projection='3d')
+    ax = plt.subplot(1, 5, inx, projection='3d')
     ax.view_init(elev=30, azim=-60)
     plt.axis('off')
     ax.set_xlabel('X')
@@ -43,13 +43,14 @@ def compare(f_id):
     id = id.split('.')[0]
     pc2skh_f_path = os.path.join(pc2skh_dir, id + ".ply")
     deepcad_f_path = os.path.join(deepcad_dir, id + ".ply")
-    secad_f_path = os.path.join(secad_dir, id + '.obj')
+    secad_f_path = os.path.join(secad_dir, id + '.ply')
+    gt_path = os.path.join(gt, id + '.ply')
     extrude_net_path = f_id
 
-    if os.path.exists(pc2skh_f_path) and os.path.exists(deepcad_f_path) and os.path.exists(secad_f_path) and os.path.exists(extrude_net_path):
+    if os.path.exists(pc2skh_f_path) and os.path.exists(deepcad_f_path) and os.path.exists(secad_f_path) and os.path.exists(extrude_net_path) and os.path.exists(gt_path):
         pc2skh_pc = read_ply(pc2skh_f_path)
         deepcad_pc = read_ply(deepcad_f_path)
-
+        gt_pc = read_ply(gt_path)
         extrude_net_mesh = o3d.io.read_triangle_mesh(extrude_net_path)
         extrude_net_pc = o3d.geometry.TriangleMesh.sample_points_uniformly(extrude_net_mesh, number_of_points=2000)
         extrude_net_pc = np.array(extrude_net_pc.points)
@@ -62,8 +63,9 @@ def compare(f_id):
         deepcad_vis = vis(deepcad_pc)
         secad_vis = vis(secad_pc)
         extrude_vis = vis(extrude_net_pc)
-
-        vis_lst = [pc2skh_vis, deepcad_vis, secad_vis, extrude_vis]
+        gt_vis = vis(gt_pc)
+        
+        vis_lst = [gt_vis, pc2skh_vis, deepcad_vis, secad_vis, extrude_vis]
         
         fig=plt.figure(figsize=(10,10)) 
         for inx, p in enumerate(vis_lst):
@@ -80,17 +82,18 @@ if __name__ == '__main__':
     
     pc2skh_dir = "/data/wc/Points2sketch/proj_log/pc2skh-50-test/output/47/h5_rc_pc"
     deepcad_dir = "/data/wc/point2sequence/proj_log/pc2cad/pc2cad/results/fake_z_ckptlatest_num20000_dec_pc"
-    secad_dir = "/data/wc/extrude_net/samples/pc2skh"
-    extrude_net_dir= "/data/wc/extrude_net/samples/pc2skh"
-    
-    names =["pc2skh", "deepcad", "secad", "extrude"]
+    secad_dir = "/data/wc/extrude_net/samples/pc2skh1"
+    extrude_net_dir= "/data/wc/extrude_net/samples/pc2skh1"
+    gt = "/data/wc/Points2sketch/proj_log/pc2skh-50-test/output/47/in_pc"
+    names =["GT", "pc2skh", "deepcad", "secad", "extrude"]
 
-    file_lst = glob.glob(os.path.join(extrude_net_dir, "*.ply"))[:3]
+    file_lst = glob.glob(os.path.join(extrude_net_dir, "*.ply"))
     
     po = Pool(64)
     pbar = tqdm(file_lst, total=len(file_lst))
     for f_id in pbar:
         po.apply(compare, args=(f_id, ))
+        # compare(f_id)
             
     po.close()
     po.join()

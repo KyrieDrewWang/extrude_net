@@ -141,7 +141,7 @@ def run(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--src', type=str, default="/data/wc/extrude_net/samples/pc2skh", required=False)
+    parser.add_argument('--src', type=str, default="/data/wc/extrude_net/samples/pc2skh1", required=False)
     parser.add_argument('--n_points', type=int, default=2000)
     parser.add_argument('--num', type=int, default=-1)
     parser.add_argument('--parallel', action='store_true', help="use parallelization")

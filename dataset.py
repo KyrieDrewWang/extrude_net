@@ -34,6 +34,49 @@ class ShapeNet(Dataset):
         self.num_testing_points = num_testing_points
         self.data_urls = readIndex(data_path)
 
+    def get_by_index(self, id):
+        
+        base = "/data/wc/Points2sketch/DATABASE/deepcad/pc2skh_3d/mesh/"
+        
+        
+        surface_point_path = os.path.join(base, id[:4], id+"_surface_point_cloud.ply")
+        gt_path = os.path.join(base, id[:4], id+"_occupancy.npy")
+        
+        # Loading Data file
+        pointcloud = np.asarray(o3d.io.read_point_cloud(surface_point_path).points)
+        
+        pointcloud = pointcloud[[not np.all(pointcloud[i] == 0) for i in range(pointcloud.shape[0])], :]
+        
+        # Load testing points
+        if self.implicite_function == "Occupancy":
+            testing_points = np.load(gt_path)
+            # downsample testing point clouds
+            if self.balance:
+                inner_points = testing_points[testing_points[:,-1]==1]
+                outer_points = testing_points[testing_points[:,-1]==0]
+                inner_index = np.random.randint(0, inner_points.shape[0], self.num_testing_points//2)
+                outer_index = np.random.randint(0, outer_points.shape[0], self.num_testing_points//2)
+                testing_points = np.concatenate([inner_points[inner_index], outer_points[outer_index]], axis=0)
+            else:
+                testing_indices = np.random.randint(0, testing_points.shape[0], self.num_testing_points)
+                testing_points = testing_points[testing_indices]
+        else:
+            testing_points = np.load(gt_path)
+            # downsample testing point clouds
+            if self.balance:
+                inner_points = testing_points[testing_points[:,-1]<0]
+                outer_points = testing_points[testing_points[:,-1]>=0]
+                inner_index = np.random.randint(0, inner_points.shape[0], self.num_testing_points//2)
+                outer_index = np.random.randint(0, outer_points.shape[0], self.num_testing_points//2)
+                testing_points = np.concatenate([inner_points[inner_index], outer_points[outer_index]], axis=0)
+            else:
+                testing_indices = np.random.randint(0, testing_points.shape[0], self.num_testing_points)
+                testing_points = testing_points[testing_indices]
+        # downsample surface point clouds
+        surface_indices = np.random.randint(0, pointcloud.shape[0], self.num_surface_points)
+        pointcloud = pointcloud[surface_indices]
+        return pointcloud.astype(np.float32), testing_points.astype(np.float32)
+
     def __getitem__(self, item):
         '''
         :param item: int
