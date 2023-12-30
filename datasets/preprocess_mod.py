@@ -199,7 +199,7 @@ def read_obj_as_o3d(file_path):
     # print(lines[:])
     
     vertices = []
-    faces = []
+    faces = [] 
     for line in lines:
         if line.startswith("v "):
             line = line.strip()

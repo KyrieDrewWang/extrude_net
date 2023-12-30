@@ -6,7 +6,7 @@
     "csg_dir": "./csgs/",
     "train_dataset_root": "/data/wc/extrude_net/data/pc2skh/train.txt",
     "val_dataset_root":   "/data/wc/extrude_net/data/pc2skh/val.txt",
-    "test_dataset_root":  "/data/wc/extrude_net/data/pc2skh/val.txt",
+    "test_dataset_root":  "/data/wc/extrude_net/data/pc2skh/test.txt",
     "epoch": 10001,
     "eval_interval": 10,
     "extrude_dir": "free",
