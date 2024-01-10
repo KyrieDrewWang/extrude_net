@@ -1,10 +1,4 @@
-# ExtrudeNet
-
-(This repo is still under construction. If you face any problem, feel free to open an issue.)
-
-The official implementation of ExtrudeNet: Unsupervised Inverse Sketch-and-Extrude for Shape Parsing
-
-### Paper and Project Page are comming soon.
+# Reproduced ExtrudeNet on point2sequence dataset
 
 ## Citation
 If you find our work interesting and benifits your research, please consider citing:
