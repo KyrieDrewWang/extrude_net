@@ -3,7 +3,7 @@ import sys
 sys.path.append('.')
 import time
 import shutil
-os.environ["CUDA_VISIBLE_DEVICES"]="6"
+os.environ["CUDA_VISIBLE_DEVICES"]="8"
 import numpy as np
 np.random.seed(0)
 import torch
